@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+
+# i  - repos for import from mirrors
+# mt - thirdparty mirrors
+# md - debian mirrors
+
+progname=$(basename $0)
+shortopts="d:fhr:q"
+longopts="distribution:,force-yes,help,repo:,quiet"
+# default options
+distribution="buster"
+force_yes="no"
+log_file="/var/log/${progname}.log"
+repo="debian"
+quiet="no"
+
+usage() {
+  cat <<-EO
+Usage: ${progname} [options]
+
+Options:
+EO
+  cat <<-EO | column -s\& -t
+  -d --distribution & distribution name (default: ${distribution})
+  -f --force-yes & do not ask whether to publish, assume answer 'yes'
+  -h --help & show thin message
+  -r --repo & repository name (default: ${repo})
+  -q --quiet & do not write anything to standard output
+EO
+  cat <<-EO
+
+Example:
+  ${progname} --repo debian --distribution buster
+EO
+}
+
+args=$(getopt -s bash --options "${shortopts}" --longoptions "${longopts}" --name "${progname}" -- "$@") || exit 1
+eval set -- "${args}"
+
+while true; do
+  case "$1" in
+    -h|--help)
+      usage; exit 0 ;;
+    -d|--distribution)
+      distribution="$2"; shift ;;
+    -f|--force-yes)
+      force_yes="yes" ;;
+    -r|--repo)
+      repo="$2"; shift ;;
+    -q|--quiet)
+      quiet="yes" ;;
+    --)
+      shift; break ;;
+    *)
+      break ;;
+  esac
+  shift
+done
+
+# Save timestamp for later use
+ts="$(date +%Y%m%d-%s)"
+
+log() {
+  if [[ "${quiet}" == "yes" ]]; then
+    return
+  fi
+
+  echo "$(date "+%F %H:%M:%S") $1" >> "${log_file}"
+}
+
+question_yes() {
+  local s="$1"
+  local answer="y"
+
+  if [[ "${force_yes}" != "yes" ]]; then
+    echo -n "Publish these snapshots? (y/n): "
+    read answer
+  fi
+
+  if [[ "${answer}" =~ y|yes ]]; then
+    return 0
+  fi
+
+  return 1
+}
+
+# return 1 if snapshots are different
+# or return 0 if snapshots are identical
+diff_snapshots() {
+  local d="$1"         # stretch|buster
+  local component="$2" # main|secuity
+  local s_new="$3"     # s-i-md-buster-main-20191114-1573736861
+  local s_old=$(aptly publish list | fgrep "${d}" | egrep -o "s-i-m.-${d}-${component}-\w+-\w+" | sort -n | tail -n 1)
+
+  aptly_diff=$(IFS='' aptly snapshot diff ${s_old} s-i-${m}-${ts})  # IFS='' - used for save format of output aptly
+  if grep -q "Snapshots are identical" <<< "${aptly_diff}"; then
+    log "No updates are available for debian ${d} ${component}"
+    # remove old snapshot. Need to thirdparty merge
+    aptly snapshot drop ${s_old} >/dev/null 2>&1
+    return 0
+  fi
+
+  return 1
+}
+
+# Save only last snapshot
+# $1 - name of last snapshot (s-i-md-buster-main-20191114-1573736861 | s-i-mt-buster-aptly-20191119-1574158391 | s-tp-buster-20191119-1574160490)
+cleanup_old_snapshots() {
+  local last_snapshot="$1"
+  local pattern=$(sed -nre "s/(s-i-m.-\w+-\w+-)\w+-\w+/\1/p;s/(s-tp-\w+-)\w+-\w+/\1/p" <<< "${last_snapshot}")
+  for s in $(aptly snapshot list -raw | fgrep "${pattern}" | fgrep -v "${last_snapshot}"); do
+    log "cleanup old snapshot ${s}"
+    aptly snapshot drop "${s}" >/dev/null 2>&1
+  done
+}
+
+# Debian mirrors
+# $1 - distribution name
+update_debian_mirrors() {
+  local d="$1"
+  for m in $(aptly mirror list -raw | egrep ^md-${d}); do
+    aptly mirror update ${m} >/dev/null 2>&1
+    aptly repo import ${m} i-${m} Name >/dev/null 2>&1
+    aptly snapshot create s-i-${m}-${ts} from repo i-${m} >/dev/null 2>&1
+
+    component=$(sed -nre "s/md-${d}-(\S+)/\1/p" <<< ${m})
+
+    if aptly publish list -raw | grep -q "^debian ${d}$"; then
+      if ! diff_snapshots "${d}" "${component}" "s-i-${m}-${ts}"; then
+        log "publish new snapshot s-i-${m}-${ts} for debian ${d} ${component}"
+        aptly publish switch -force-overwrite=true -component=${component} ${d} debian s-i-${m}-${ts} >/dev/null 2>&1
+        cleanup_old_snapshots s-i-${m}-${ts}
+      fi
+    fi
+  done
+}
+
+# Third party mirrors
+# $1 - distribution name (buster)
+update_thirdparty() {
+  local d="$1"
+  local buf=$(mktemp)
+  local need_merge_snapshot=0
+  for m in $(aptly mirror list -raw | egrep ^mt-${d}); do
+    aptly mirror update ${m} >/dev/null 2>&1
+    aptly repo import ${m} i-${m} Name >/dev/null 2>&1
+    aptly snapshot create s-i-${m}-${ts} from repo i-${m} >/dev/null 2>&1
+
+    echo s-i-${m}-${ts} >> "${buf}"
+
+    component=$(sed -nre "s/mt-${d}-(\S+)/\1/p" <<< ${m})
+
+    if ! diff_snapshots "${d}" "${component}" "s-i-${m}-${ts}"; then
+      need_merge_snapshot=1
+      #cleanup_old_snapshots s-i-${m}-${ts}
+    fi
+  done
+
+  # create common snapshot from all s-i-mt snapshots
+  if [[ "${need_merge_snapshot}" == 1 ]]; then
+    aptly snapshot merge -no-remove s-tp-${d}-${ts} $(cat $buf)
+
+    if aptly publish list -raw | grep -q "^thirdparty-buster ${d}$"; then
+      log "publish new snapshot s-tp-${d}-${ts} for thirdparty ${d} main"
+      aptly publish switch -force-overwrite=true -component=main ${d} thirdparty-buster s-tp-${d}-${ts} >/dev/null 2>&1
+      # cleanupa old merged snapshots
+      cleanup_old_snapshots s-tp-${d}-${ts}
+    fi
+    for m in $(aptly mirror list -raw | egrep ^mt-${d}); do
+      # cleanup old mirrors snapshots
+      cleanup_old_snapshots s-i-${m}-${ts}
+    done
+  fi
+  #rm -f "${buf}"
+}
+
+case "${repo}" in
+  debian)
+    update_debian_mirrors "${distribution}" ;;
+  thirdparty-buster)
+    update_thirdparty "${distribution}" ;;
+esac
+
+# vim: tabstop=2 shiftwidth=2 expandtab
