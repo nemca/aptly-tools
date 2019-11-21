@@ -152,13 +152,12 @@ update_thirdparty() {
 
     if ! diff_snapshots "${d}" "${component}" "s-i-${m}-${ts}"; then
       need_merge_snapshot=1
-      #cleanup_old_snapshots s-i-${m}-${ts}
     fi
   done
 
   # create common snapshot from all s-i-mt snapshots
   if [[ "${need_merge_snapshot}" == 1 ]]; then
-    aptly snapshot merge -no-remove s-tp-${d}-${ts} $(cat $buf)
+    aptly snapshot merge -no-remove s-tp-${d}-${ts} $(cat $buf) >/dev/null 2>&1
 
     if aptly publish list -raw | grep -q "^thirdparty-buster ${d}$"; then
       log "publish new snapshot s-tp-${d}-${ts} for thirdparty ${d} main"
@@ -171,7 +170,7 @@ update_thirdparty() {
       cleanup_old_snapshots s-i-${m}-${ts}
     done
   fi
-  #rm -f "${buf}"
+  rm -f "${buf}"
 }
 
 case "${repo}" in
