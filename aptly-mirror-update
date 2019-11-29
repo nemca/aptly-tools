@@ -31,6 +31,7 @@ EO
 
 Example:
   ${progname} --repo debian --distribution buster
+  ${progname} --repo thirdparty-buster --distribution buster
 EO
 }
 
@@ -92,6 +93,11 @@ diff_snapshots() {
   local s_new="$3"     # s-i-md-buster-main-20191114-1573736861
   local s_old=$(aptly publish list | fgrep "${d}" | egrep -o "s-i-m.-${d}-${component}-\w+-\w+" | sort -n | tail -n 1)
 
+  if [[ -z "${s_old}" ]]; then
+    log "Updates are available for debian ${d} ${component}"
+    return 1
+  fi
+
   aptly_diff=$(IFS='' aptly snapshot diff ${s_old} s-i-${m}-${ts})  # IFS='' - used for save format of output aptly
   if grep -q "Snapshots are identical" <<< "${aptly_diff}"; then
     log "No updates are available for debian ${d} ${component}"
@@ -100,6 +106,7 @@ diff_snapshots() {
     return 0
   fi
 
+  log "Updates are available for debian ${d} ${component}"
   return 1
 }
 
@@ -108,6 +115,9 @@ diff_snapshots() {
 cleanup_old_snapshots() {
   local last_snapshot="$1"
   local pattern=$(sed -nre "s/(s-i-m.-\w+-\w+-)\w+-\w+/\1/p;s/(s-tp-\w+-)\w+-\w+/\1/p" <<< "${last_snapshot}")
+  if [[ -z "${pattern}" ]]; then
+    return
+  fi
   for s in $(aptly snapshot list -raw | fgrep "${pattern}" | fgrep -v "${last_snapshot}"); do
     log "cleanup old snapshot ${s}"
     aptly snapshot drop "${s}" >/dev/null 2>&1
@@ -152,6 +162,7 @@ update_thirdparty() {
 
     if ! diff_snapshots "${d}" "${component}" "s-i-${m}-${ts}"; then
       need_merge_snapshot=1
+      cleanup_old_snapshots s-i-${m}-${ts}
     fi
   done
 
