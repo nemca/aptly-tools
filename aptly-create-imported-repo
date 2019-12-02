@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+
+progname=$(basename $0)
+shortopts="a:c:d:hn:p:r:s:u:"
+longopts="architectures:,component:,distribution:,help,name:,publish:,repo:,with-sources:,url:"
+# default options
+architectures="source,amd64"
+distribution="buster"
+repo="thirdparty-buster"
+component="main"
+sources="true"
+publish="false"
+
+usage() {
+  cat <<-EO
+Usage: ${progname} [options]
+
+Options:
+EO
+  cat <<-EO | column -s\& -t
+  -a --architectures & list of architectures for publishing
+  -c --component & component name or 'all' for all available components (default: ${component})
+  -d --distribution & distribution name (default: ${distribution})
+  -h --help & show thin message
+  -n --name & name of thirdparty distribution
+  -p --publish & publish snapshot (default: ${publish})
+  -r --repo & repository name (default: ${repo})
+  -s --with-sources & enable/disable source packages (default: ${sources})
+  -u --url & repository url
+EO
+  cat <<-EO
+
+Example:
+  ${progname} --repo thirdparty-buster  --name aptly --url http://repo.aptly.info/ --distribution squeeze --component main
+  ${progname} --repo thirdparty-stretch --name rabbitmq --url https://dl.bintray.com/rabbitmq/debian/ --distribution stretch --component main --with-source false
+  ${progname} --repo thirdparty-buster --name puppetlabs --url http://apt.puppetlabs.com/ --distribution buster --component "puppet puppet6 puppet-tools" --with-source false
+EO
+}
+
+args=$(getopt -s bash --options "${shortopts}" --longoptions "${longopts}" --name "${progname}" -- "$@") || exit 1
+eval set -- "${args}"
+
+while true; do
+  case "$1" in
+    -h|--help)
+      usage; exit 0 ;;
+    -c|--component)
+      component="$2"; shift ;;
+    -d|--distribution)
+      distribution="$2"; shift ;;
+    -n|--name)
+      name="$2"; shift ;;
+    -p|--publish)
+      publish="$2"; shift ;;
+    -r|--repo)
+      repo="$2"; shift ;;
+    -s|--with-sources)
+      sources="$2"; shift ;;
+    -u|--url)
+      url="$2"; shift ;;
+    --)
+      shift; break ;;
+    *)
+      break ;;
+  esac
+  shift
+done
+
+if [[ -z "${url}" ]]; then
+  usage; exit 1
+fi
+
+ts="$(date +%Y%m%d-%s)"
+
+tp_repo=$(sed -nre "s/thirdparty-(\S+)/\1/p" <<< ${repo})
+if [[ "${component}" == "all" ]]; then
+  component=
+fi
+
+if ! aptly repo list -raw | fgrep -q "i-mt-${tp_name}-${name}"; then
+  aptly repo create -comment="Thirdparty ${name} (imported)" -distribution="${distribution}" i-mt-${tp_repo}-${name}
+fi
+aptly mirror create -with-sources="${sources}" -force-components mt-${tp_repo}-${name} "${url}" "${distribution}" ${component}
+if [[ "$?" -eq 0 ]]; then
+  aptly mirror update mt-${tp_repo}-${name}
+  aptly repo import mt-${tp_repo}-${name} i-mt-${tp_repo}-${name} Name
+  aptly snapshot create s-i-mt-${tp_repo}-${name}-${ts} from repo i-mt-${tp_repo}-${name}
+  if [[ "${publish}" == "true" ]]; then
+    aptly publish snapshot -distribution="${tp_repo}" -architectures="${architectures}" -component="${component}" s-i-mt-${tp_repo}-${name}-${ts} "${repo}"
+    #aptly publish snapshot -distribution="${tp_repo}" -architectures="${architectures}" s-i-mt-${tp_repo}-${name}-${ts} "${repo}"
+  fi
+fi
+
+# vim: tabstop=2 shiftwidth=2 expandtab
