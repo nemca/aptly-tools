@@ -170,9 +170,9 @@ update_thirdparty() {
   if [[ "${need_merge_snapshot}" == 1 ]]; then
     aptly snapshot merge -no-remove s-tp-${d}-${ts} $(cat $buf) >/dev/null 2>&1
 
-    if aptly publish list -raw | grep -q "^thirdparty-buster ${d}$"; then
+    if aptly publish list -raw | grep -q "^thirdparty-${d} ${d}$"; then
       log "publish new snapshot s-tp-${d}-${ts} for thirdparty ${d} main"
-      aptly publish switch -force-overwrite=true -component=main ${d} thirdparty-buster s-tp-${d}-${ts} >/dev/null 2>&1
+      aptly publish switch -force-overwrite=true -component=main ${d} thirdparty-${d} s-tp-${d}-${ts} >/dev/null 2>&1
       # cleanupa old merged snapshots
       cleanup_old_snapshots s-tp-${d}-${ts}
     fi
@@ -188,6 +188,8 @@ case "${repo}" in
   debian)
     update_debian_mirrors "${distribution}" ;;
   thirdparty-buster)
+    update_thirdparty "${distribution}" ;;
+  thirdparty-stretch)
     update_thirdparty "${distribution}" ;;
 esac
 
