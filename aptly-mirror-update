@@ -114,7 +114,7 @@ diff_snapshots() {
 # $1 - name of last snapshot (s-i-md-buster-main-20191114-1573736861 | s-i-mt-buster-aptly-20191119-1574158391 | s-tp-buster-20191119-1574160490)
 cleanup_old_snapshots() {
   local last_snapshot="$1"
-  local pattern=$(sed -nre "s/(s-i-m.-\w+-\w+-)\w+-\w+/\1/p;s/(s-tp-\w+-)\w+-\w+/\1/p" <<< "${last_snapshot}")
+  local pattern=$(sed -nre "s/(s-i-m.-\w+-\S+-)\w+-\w+/\1/p;s/(s-tp-\w+-)\w+-\w+/\1/p" <<< "${last_snapshot}")
   if [[ -z "${pattern}" ]]; then
     return
   fi
