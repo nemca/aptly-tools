@@ -12,7 +12,7 @@ and create local mirror
 ```
 aptly-create-imported-repo --repo thirdparty-buster --name elasticsearch7.x --url https://artifacts.elastic.co/packages/7.x/apt/ --distribution stable --component main --with-sources false
 ```
-After this, create crontask for automatic update packages. Important: old version packages in out local repo don' remove.
+After this, create crontask for automatic update packages. Important: old version packages in our local repo don' remove.
 ```
 53 03 * * * aptly-mirror-update --repo thirdparty-buster --distribution buster
 ```
