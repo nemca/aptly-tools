@@ -3,7 +3,7 @@
 Tools for managing debian repos by [aptly](https://www.aptly.info).
 
 ## Example usage
-Let's add new repo for Elasticsearch packages. In the [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/deb.html) we can see, that they ask us to add repo to sources.list and import PGP key.
+Let's add new repo for Elasticsearch packages. In the [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/deb.html) we can see, that they ask us to add repo to sources.list and import PGP key.  
 Adding PGP key
 ```
 wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
