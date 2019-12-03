@@ -2,6 +2,25 @@
 
 Tools for managing debian repos by [aptly](https://www.aptly.info).
 
+## Example usage
+Let's add new repo for Elasticsearch packages. In the [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/deb.html) we can see, that they ask us to add repo to sources.list and import PGP key.
+Adding PGP key
+```
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+```
+and create local mirror
+```
+aptly-create-imported-repo --repo thirdparty-buster --name elasticsearch7.x --url https://artifacts.elastic.co/packages/7.x/apt/ --distribution stable --component main --with-sources false
+```
+After this, create crontask for automatic update packages. Important: old version packages in out local repo don' remove.
+```
+53 03 * * * aptly-mirror-update --repo thirdparty-buster --distribution buster
+```
+Now we can configure apt sources.list for usage our local repos
+```
+deb http://your.aptly.host/thirdparty-buster/ buster main
+```
+
 ## aptly-mirror-update
 This script do update local mirrors and import new packages to local repository, then create snapshot and publish it.
 ```
