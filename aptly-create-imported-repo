@@ -30,10 +30,13 @@ EO
 EO
   cat <<-EO
 
-Example:
+Example for thirdparty repos:
   ${progname} --repo thirdparty-buster  --name aptly --url http://repo.aptly.info/ --distribution squeeze --component main
   ${progname} --repo thirdparty-stretch --name rabbitmq --url https://dl.bintray.com/rabbitmq/debian/ --distribution stretch --component main --with-source false
   ${progname} --repo thirdparty-buster --name puppetlabs --url http://apt.puppetlabs.com/ --distribution buster --component "puppet puppet6 puppet-tools" --with-source false
+
+Example for Debian repos:
+  ${progname} --repo debian --name main --url http://ftp.ru.debian.org/debian/ --distribution buster --component all
 EO
 }
 
@@ -72,23 +75,52 @@ fi
 
 ts="$(date +%Y%m%d-%s)"
 
-tp_repo=$(sed -nre "s/thirdparty-(\S+)/\1/p" <<< ${repo})
 if [[ "${component}" == "all" ]]; then
   component=
 fi
 
-if ! aptly repo list -raw | fgrep -q "i-mt-${tp_name}-${name}"; then
-  aptly repo create -comment="Thirdparty ${name} (imported)" -distribution="${distribution}" i-mt-${tp_repo}-${name}
-fi
-aptly mirror create -with-sources="${sources}" -force-components mt-${tp_repo}-${name} "${url}" "${distribution}" ${component}
-if [[ "$?" -eq 0 ]]; then
-  aptly mirror update mt-${tp_repo}-${name}
-  aptly repo import mt-${tp_repo}-${name} i-mt-${tp_repo}-${name} Name
-  aptly snapshot create s-i-mt-${tp_repo}-${name}-${ts} from repo i-mt-${tp_repo}-${name}
-  if [[ "${publish}" == "true" ]]; then
-    aptly publish snapshot -distribution="${tp_repo}" -architectures="${architectures}" -component="${component}" s-i-mt-${tp_repo}-${name}-${ts} "${repo}"
-    #aptly publish snapshot -distribution="${tp_repo}" -architectures="${architectures}" s-i-mt-${tp_repo}-${name}-${ts} "${repo}"
+create_debian_mirror() {
+  local distribution="$1"
+  local d=$(sed -r 's,(\w+)(/|-)\w+,\1,' <<< "${distribution}")
+
+  if ! aptly repo list -raw | fgrep -q "i-md-${distribution}-${name}"; then
+    aptly repo create -comment="Debian ${distribution} (imported)" -distribution="${d}" "i-md-${d}-${name}"
   fi
-fi
+  aptly mirror create -with-sources="${sources}" "md-${d}-${name}" "${url}" "${distribution}" ${component}
+  if [[ "$?" -eq 0 ]]; then
+    aptly mirror update "md-${d}-${name}"
+    aptly repo import "md-${d}-${name}" "i-md-${d}-${name}" Name
+    aptly snapshot create "s-i-md-${d}-${name}-${ts}" from repo "i-md-${d}-${name}"
+    if [[ "${publish}" == "true" ]]; then
+      aptly publish snapshot -force-overwrite=true -component="${name}" -distribution="${distribution}" -architectures="${architectures}" "s-i-md-${distribution}-${name}-${ts}" "${distribution}"
+    fi
+  fi
+}
+
+create_thirdparty_mirror() {
+  local distribution="$1"
+  local tp_repo=$(sed -nre "s/thirdparty-(\S+)/\1/p" <<< ${repo})
+
+  if ! aptly repo list -raw | fgrep -q "i-mt-${tp_name}-${name}"; then
+    aptly repo create -comment="Thirdparty ${name} (imported)" -distribution="${distribution}" i-mt-${tp_repo}-${name}
+  fi
+  aptly mirror create -with-sources="${sources}" -force-components mt-${tp_repo}-${name} "${url}" "${distribution}" ${component}
+  if [[ "$?" -eq 0 ]]; then
+    aptly mirror update mt-${tp_repo}-${name}
+    aptly repo import mt-${tp_repo}-${name} i-mt-${tp_repo}-${name} Name
+    aptly snapshot create s-i-mt-${tp_repo}-${name}-${ts} from repo i-mt-${tp_repo}-${name}
+    if [[ "${publish}" == "true" ]]; then
+      aptly publish snapshot -distribution="${tp_repo}" -architectures="${architectures}" -component="${component}" s-i-mt-${tp_repo}-${name}-${ts} "${repo}"
+      #aptly publish snapshot -distribution="${tp_repo}" -architectures="${architectures}" s-i-mt-${tp_repo}-${name}-${ts} "${repo}"
+    fi
+  fi
+}
+
+case "${repo}" in
+  debian)
+    create_debian_mirror "${distribution}" ;;
+  thirdparty-*)
+    create_thirdparty_mirror "${distribution}" ;;
+esac
 
 # vim: tabstop=2 shiftwidth=2 expandtab

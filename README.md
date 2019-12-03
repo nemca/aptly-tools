@@ -21,6 +21,18 @@ Now we can configure apt sources.list for usage our local repos
 deb http://your.aptly.host/thirdparty-buster/ buster main
 ```
 
+Also let's create local copy of Debian repos.
+```
+aptly-create-imported-repo --repo debian --name main --url http://ftp.ru.debian.org/debian/ --distribution buster --component all
+aptly-create-imported-repo --repo debian --name security --url http://security.debian.org/debian-security --distribution buster/updates --component all
+aptly-create-imported-repo --repo debian --name updates --url http://ftp.ru.debian.org/debian/ --distribution buster-updates --component all
+aptly-create-imported-repo --repo debian --name backports --url http://ftp.ru.debian.org/debian/ --distribution buster-backports --component all
+```
+and add its update to cron
+```
+03 03 * * * aptly-mirror-update --repo debian --distribution buster
+```
+
 ## aptly-mirror-update
 This script do update local mirrors and import new packages to local repository, then create snapshot and publish it.
 ```
