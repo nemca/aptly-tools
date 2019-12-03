@@ -32,6 +32,10 @@ and add its update to cron
 ```
 03 03 * * * aptly-mirror-update --repo debian --distribution buster
 ```
+configure sources.list
+```
+deb http://your.aptly.host/debian/ buster main security updates backports
+```
 
 ## aptly-mirror-update
 This script do update local mirrors and import new packages to local repository, then create snapshot and publish it.
