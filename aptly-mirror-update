@@ -191,6 +191,8 @@ case "${repo}" in
     update_thirdparty "${distribution}" ;;
   thirdparty-stretch)
     update_thirdparty "${distribution}" ;;
+  thirdparty-jessie)
+    update_thirdparty "${distribution}" ;;
 esac
 
 # vim: tabstop=2 shiftwidth=2 expandtab
