@@ -32,8 +32,8 @@ EO
 
 Example for thirdparty repos:
   ${progname} --repo thirdparty-buster  --name aptly --url http://repo.aptly.info/ --distribution squeeze --component main
-  ${progname} --repo thirdparty-stretch --name rabbitmq --url https://dl.bintray.com/rabbitmq/debian/ --distribution stretch --component main --with-source false
-  ${progname} --repo thirdparty-buster --name puppetlabs --url http://apt.puppetlabs.com/ --distribution buster --component "puppet puppet6 puppet-tools" --with-source false
+  ${progname} --repo thirdparty-stretch --name rabbitmq --url https://dl.bintray.com/rabbitmq/debian/ --distribution stretch --component main --with-sources false
+  ${progname} --repo thirdparty-buster --name puppetlabs --url http://apt.puppetlabs.com/ --distribution buster --component "puppet puppet6 puppet-tools" --with-sources false
 
 Example for Debian repos:
   ${progname} --repo debian --name main --url http://ftp.ru.debian.org/debian/ --distribution buster --component all
@@ -61,6 +61,8 @@ while true; do
       sources="$2"; shift ;;
     -u|--url)
       url="$2"; shift ;;
+    -a|--architectures)
+      architectures="$2"; shift ;;
     --)
       shift; break ;;
     *)
