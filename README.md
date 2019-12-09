@@ -52,6 +52,7 @@ Options:
 
 Example:
   aptly-mirror-update --repo debian --distribution buster
+  aptly-mirror-update --repo thirdparty-buster --distribution buster
 ```
 
 ## aptly-create-imported-repo
