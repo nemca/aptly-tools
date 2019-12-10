@@ -54,6 +54,8 @@ Example:
   aptly-mirror-update --repo debian --distribution buster
   aptly-mirror-update --repo thirdparty-buster --distribution buster
 ```
+This picture describes how the script works schematically
+![aptly-mirror-update scheme](aptly.jpg)
 
 ## aptly-create-imported-repo
 This script create repo and mirror. Update mirror and import packages to repo.
